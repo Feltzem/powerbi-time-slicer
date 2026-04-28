@@ -1,0 +1,29 @@
+# Node / build
+node_modules/
+dist/
+*.pbiviz
+.tmp/
+.api/
+out/
+build/
+lib/
+
+# Tests / coverage
+coverage/
+test-results/
+reports/
+
+# Caches / logs
+.cache/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/
+.vs/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env

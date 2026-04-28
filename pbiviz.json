@@ -1,0 +1,25 @@
+{
+  "visual": {
+    "name": "timeSlicerVisual",
+    "displayName": "Time Slicer",
+    "guid": "timeSlicer_1234567890",
+    "visualClassName": "Visual",
+    "version": "1.0.0.0",
+    "description": "A beautiful and intuitive time slicer for filtering data by date ranges",
+    "supportUrl": "https://github.com/powerbi-visuals/time-slicer",
+    "gitHubUrl": "https://github.com/powerbi-visuals/time-slicer"
+  },
+  "apiVersion": "5.2.0",
+  "author": {
+    "name": "Power BI Developer",
+    "email": "developer@powerbi.com"
+  },
+  "assets": {
+    "icon": "assets/icon.svg"
+  },
+  "externalJS": [],
+  "style": "style/visual.less",
+  "capabilities": "capabilities.json",
+  "dependencies": "dependencies.json",
+  "stringResources": []
+}

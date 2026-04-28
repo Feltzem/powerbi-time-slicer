@@ -1,0 +1,114 @@
+{
+  "dataRoles": [
+    {
+      "displayName": "Time Field",
+      "name": "timeField",
+      "kind": "Grouping"
+    }
+  ],
+  "dataViewMappings": [
+    {
+      "conditions": [
+        {
+          "timeField": {
+            "max": 1
+          }
+        }
+      ],
+      "categorical": {
+        "categories": {
+          "for": {
+            "in": "timeField"
+          },
+          "dataReductionAlgorithm": {
+            "top": {}
+          }
+        }
+      }
+    }
+  ],
+  "objects": {
+    "general": {
+      "displayName": "General",
+      "properties": {
+        "filter": {
+          "type": {
+            "filter": {}
+          }
+        }
+      }
+    },
+    "timeSlicerSettings": {
+      "displayName": "Time Slicer Settings",
+      "properties": {
+        "sliderColor": {
+          "displayName": "Accent Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "textColor": {
+          "displayName": "Text Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "showLabels": {
+          "displayName": "Show Labels",
+          "type": {
+            "bool": true
+          }
+        },
+        "timeFormat": {
+          "displayName": "Time Format",
+          "type": {
+            "enumeration": [
+              {
+                "displayName": "24-hour (HH:MM)",
+                "value": "HH:MM"
+              },
+              {
+                "displayName": "12-hour (h:mm A)",
+                "value": "h:mm A"
+              }
+            ]
+          }
+        },
+        "compactMode": {
+          "displayName": "Compact Mode",
+          "type": {
+            "bool": true
+          }
+        },
+        "customStartTime": {
+          "displayName": "Custom Start (minutes)",
+          "type": {
+            "numeric": true
+          }
+        },
+        "customEndTime": {
+          "displayName": "Custom End (minutes)",
+          "type": {
+            "numeric": true
+          }
+        }
+      }
+    }
+  },
+  "supportsKeyboardFocus": true,
+  "supportsMultiVisualSelection": true,
+  "supportsHighlight": true,
+  "privileges": [],
+  "supportsLandingPage": false,
+  "sorting": {
+    "default": {}
+  }
+}

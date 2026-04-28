@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#007acc;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#005a9e;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+    
+    <!-- Background circle -->
+    <circle cx="32" cy="32" r="30" fill="url(#bgGradient)" stroke="#ffffff" stroke-width="2"/>
+    
+    <!-- Clock face -->
+    <circle cx="32" cy="32" r="20" fill="none" stroke="#ffffff" stroke-width="2"/>
+    
+    <!-- Clock hands -->
+    <line x1="32" y1="32" x2="32" y2="18" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+    <line x1="32" y1="32" x2="42" y2="32" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Center dot -->
+    <circle cx="32" cy="32" r="2" fill="#ffffff"/>
+    
+    <!-- Slider track -->
+    <rect x="8" y="48" width="48" height="4" rx="2" fill="#ffffff" opacity="0.3"/>
+    <rect x="8" y="48" width="32" height="4" rx="2" fill="#ffffff"/>
+    
+    <!-- Slider handles -->
+    <circle cx="16" cy="50" r="3" fill="#ffffff"/>
+    <circle cx="40" cy="50" r="3" fill="#ffffff"/>
+    
+    <!-- Time indicators -->
+    <circle cx="20" cy="12" r="1.5" fill="#ffffff"/>
+    <circle cx="44" cy="12" r="1.5" fill="#ffffff"/>
+    <circle cx="52" cy="32" r="1.5" fill="#ffffff"/>
+</svg>

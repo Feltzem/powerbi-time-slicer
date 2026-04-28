@@ -1,0 +1,22 @@
+{
+  "name": "time-slicer-visual",
+  "description": "A beautiful and easy-to-use time slicer visual for Power BI",
+  "version": "1.0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "pbiviz": "pbiviz",
+    "start": "pbiviz start",
+    "package": "pbiviz package",
+    "build": "pbiviz package",
+    "test": "npx ts-node -O \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\",\\\"lib\\\":[\\\"es2022\\\",\\\"dom\\\"]}\" tests/filtering.test.ts"
+  },
+  "dependencies": {
+    "powerbi-visuals-api": "~5.2.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.6",
+    "jsdom": "^24.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "5.5.4"
+  }
+}
