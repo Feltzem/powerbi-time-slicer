@@ -42,11 +42,91 @@ A beautiful and intuitive time slicer custom visual for Power BI that allows use
 
 This will create a `.pbiviz` file in the `dist` folder that can be imported into Power BI.
 
+### Testing in Power BI Web
+
+You have two browser testing options in Power BI Service:
+
+1. **Live developer testing** with `pbiviz start`
+2. **Packaged import testing** with a generated `.pbiviz`
+
+Use live developer testing while building the visual, and use packaged import testing when you want to verify the final artifact behaves the way users will receive it.
+
+#### Option 1: Live developer testing with `pbiviz start`
+
+This option does **not** require creating a `.pbiviz` file for every change. It does require the project dependencies to be installed once with `npm install`, which creates the `node_modules` folder.
+
+1. Install dependencies if you have not already:
+
+   ```powershell
+   npm install
+   ```
+
+2. Start the local development server:
+
+   ```powershell
+   npm start
+   ```
+
+3. Enable developer mode in Power BI Service.
+
+4. Open or create a report in Power BI Service and add the **Developer Visual**.
+
+5. Point the Developer Visual at the local visual served by `pbiviz start`.
+
+6. Make code changes and refresh the report as needed. This is the fastest way to test behavior in the browser during development.
+
+Notes:
+
+- `npm start` uses the `pbiviz start` script already defined in this project.
+- `pbiviz start` serves the visual locally for debugging; it does not create the distributable `.pbiviz` package.
+- The large `node_modules` folder comes from `npm install`, not from `npm start` or `npm run package`.
+
+#### Option 2: Packaged import testing with `.pbiviz`
+
+Use this path when you want to test the packaged artifact that will actually be imported into Power BI.
+
+1. Build a fresh package before each browser test cycle:
+
+   ```powershell
+   npm run package
+   ```
+
+2. Confirm that the packaged file exists in `dist/` and note the current version. This project produces a file named like `timeSlicer_1234567890.1.0.0.0.pbiviz`.
+
+3. Sign in to [Power BI Service](https://app.powerbi.com/) and open a workspace where you can edit reports.
+
+4. Create a test report or open an existing report that uses a dataset with a single time or date/time column you can map to the visual's **Time Field** role.
+
+5. In report edit mode, open the **Visualizations** pane, select the three dots, then choose **Import a visual from a file**.
+
+6. Upload the packaged `.pbiviz` file from `dist/`. If your tenant blocks custom visual imports, test in Power BI Desktop first or ask your Power BI administrator to enable custom visual imports for your workspace.
+
+7. Add **Time Slicer** to the report canvas and drag your source column into **Time Field**.
+
+8. Verify the main browser behaviors:
+   - Move both slider handles and confirm the selected range updates.
+   - Check that other visuals on the page cross-filter when the range changes.
+   - Use **Reset** and confirm the full dataset returns.
+   - Exercise quick-select buttons and autoplay if they are enabled in the current build.
+   - Resize the browser window and confirm the layout remains usable at narrower widths.
+
+9. Open the report in reading view after saving and confirm the visual still filters correctly outside edit mode.
+
+10. For each new code change, rebuild with `npm run package`, remove the old visual instance if needed, and re-import the updated `.pbiviz` so the service uses the latest package.
+
+Recommended browser test checklist:
+
+- Prefer `npm start` plus Developer Visual while iterating on code.
+- Test in both Chrome and Edge, since Power BI Service is most commonly used there.
+- Validate with a small dataset first so filter behavior is easy to inspect.
+- Include at least one table visual on the page to make range-filter verification obvious.
+- If the visual appears unchanged after re-import, clear the browser cache or upload a package with an incremented version in `pbiviz.json`.
+
 ## Usage
 
 1. **Import the Visual**: In Power BI Desktop, click on "Import a visual from a file" and select the generated `.pbiviz` file.
 
-2. **Add Data**: Drag the visual to your report canvas and add a date field to the "Date Field" data role.
+2. **Add Data**: Drag the visual to your report canvas and add a time, date, or datetime field to the "Time Field" data role.
 
 3. **Configure**: Use the formatting options to customize:
    - Slider color
@@ -64,7 +144,7 @@ This will create a `.pbiviz` file in the `dist` folder that can be imported into
 
 ## Data Requirements
 
-- **Date Field**: A date/datetime column from your dataset
+- **Time Field**: A time, date, or datetime column from your dataset
 
 ## Customization Options
 

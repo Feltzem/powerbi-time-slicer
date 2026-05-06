@@ -7,8 +7,9 @@
     "sourceMap": true,
     "outDir": "./.tmp/build/",
     "moduleResolution": "node",
+    "rootDir": ".",
     "declaration": true,
     "lib": ["es2022", "dom"]
   },
-  "files": ["./src/visual.ts"]
+  "files": ["./src/visual.ts", "./src/visual.less.d.ts"]
 }

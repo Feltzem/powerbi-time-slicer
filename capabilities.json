@@ -41,8 +41,18 @@
     "timeSlicerSettings": {
       "displayName": "Time Slicer Settings",
       "properties": {
-        "sliderColor": {
+        "accentColor": {
           "displayName": "Accent Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "backgroundColor": {
+          "displayName": "Background Color",
           "type": {
             "fill": {
               "solid": {
@@ -96,6 +106,18 @@
         },
         "customEndTime": {
           "displayName": "Custom End (minutes)",
+          "type": {
+            "numeric": true
+          }
+        },
+        "selectedStartTime": {
+          "displayName": "Selected Start (minutes)",
+          "type": {
+            "numeric": true
+          }
+        },
+        "selectedEndTime": {
+          "displayName": "Selected End (minutes)",
           "type": {
             "numeric": true
           }
