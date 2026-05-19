@@ -1,13 +1,15 @@
 # Power BI Time Slicer Visual
 
-A beautiful and intuitive time slicer custom visual for Power BI that allows users to filter data by a time formatted field
+A Power BI custom visual for filtering report data by a time-formatted field.
 
 ## Features
 
-- **Dual Range Slider**: Select start and end dates with dual-handle range slider
-- **Auto-Play**: Automatically animate through time periods
-- **Quick Select Buttons**: Preset options for Last 7, 30, 90 days, and Last Year
-- **Customizable Appearance**: Change colors, date formats, and show/hide labels
+- **Dual Range Slider**: Select start and end times with a dual-handle range slider
+- **Playback Snap Interval**: Choose 1, 5, 10, 15, 30, or 60 minute snapping for playback and range movement
+- **Live Duration Label**: See the selected duration update as the handles move
+- **Auto-Play**: Automatically move the selected time range forward by the playback snap interval, looping back to `00:00` after the end of the day
+- **Quick Select Buttons**: Four fully editable preset ranges, with defaults for AM Peak, Inter-Peak, PM Peak, and Custom
+- **Customizable Appearance**: Change colors, time formats, preset labels, preset ranges, and show/hide labels
 - **Responsive Design**: Works well on different screen sizes
 - **Accessibility**: Keyboard navigation and focus indicators
 
@@ -91,7 +93,7 @@ Use this path when you want to test the packaged artifact that will actually be 
    npm run package
    ```
 
-2. Confirm that the packaged file exists in `dist/` and note the current version. This project produces a file named like `timeSlicer_1234567890.1.0.0.0.pbiviz`.
+2. Confirm that the packaged file exists in `dist/` and note the current version. This project produces a file named like `timeSlicer_1234567890.1.1.0.0.pbiviz`.
 
 3. Sign in to [Power BI Service](https://app.powerbi.com/) and open a workspace where you can edit reports.
 
@@ -132,15 +134,18 @@ Recommended browser test checklist:
    - Slider color
    - Background color
    - Text color
-   - Date format
+   - Time format
+   - Playback snap interval
+   - Quick-select preset labels and start/end times
    - Show/hide labels
 
 ## Controls
 
-- **Range Sliders**: Drag the handles to select start and end dates
+- **Range Sliders**: Drag the handles to select start and end times
+- **Duration Badge**: Shows the currently selected duration, such as `1h 30m selected`
 - **Play Button**: Auto-animate through time periods
-- **Reset Button**: Return to full date range
-- **Quick Select**: Buttons for common time periods
+- **Reset Button**: Return to the full day
+- **Quick Select**: Buttons for editable common time periods
 
 ## Data Requirements
 
@@ -153,12 +158,19 @@ Recommended browser test checklist:
 - **Accent Color**: Color of the slider track and time bucket buttons
 - **Background Color**: Background color of the visual
 - **Text Color**: Color of all text elements
-- **Show Labels**: Toggle date labels visibility
-- **Date Format**: Choose from multiple date format options:
-  - MM/DD/YYYY
-  - DD/MM/YYYY
-  - YYYY-MM-DD
-  - MMM DD, YYYY
+- **Show Labels**: Toggle time labels visibility
+- **Time Format**: Choose 24-hour (`HH:MM`) or 12-hour (`h:mm A`) display
+- **Playback Snap Interval**: Choose 1, 5, 10, 15, 30, or 60 minute increments
+
+### Custom Time Filters
+
+The format pane shows four generic editable slots: `Preset 1`, `Preset 2`, `Preset 3`, and `Preset 4`. Each preset has a label, start time, and end time, so the defaults can be repurposed to any time range.
+
+- **Preset 1**: Default label `AM Peak`, from `07:00` to `09:00`
+- **Preset 2**: Default label `Inter-Peak`, from `10:00` to `12:00`
+- **Preset 3**: Default label `PM Peak`, from `16:00` to `18:00`
+- **Preset 4**: Default label `Custom`, from `09:00` to `17:00`
+- Start and end fields accept friendly time text such as `02:00`, `2:00 AM`, or `0200`
 
 ## Development
 
@@ -181,10 +193,49 @@ powerbi-time-slicer/
 ### Key Features Implementation
 
 1. **Dual Range Slider**: Uses two HTML range inputs overlaid to create a dual-handle slider
-2. **Date Filtering**: Applies Power BI filters based on selected date range
-3. **Auto-Play**: Uses setInterval to animate through time periods
+2. **Time Filtering**: Applies Power BI advanced filters based on the selected time range
+3. **Auto-Play**: Uses `setInterval` to advance the active range by the playback snap interval and loop back to the start of the day
 4. **Responsive Design**: CSS flexbox and media queries for different screen sizes
 5. **Settings Panel**: Power BI formatting options for customization
+
+## Release Process
+
+1. Confirm the working tree contains the intended release changes:
+
+   ```powershell
+   git status
+   ```
+
+2. Run the regression test:
+
+   ```powershell
+   npm test
+   ```
+
+3. Build the distributable visual:
+
+   ```powershell
+   npm run package
+   ```
+
+4. Confirm the `.pbiviz` file exists in `dist/`.
+
+5. Commit the release changes and create a version tag:
+
+   ```powershell
+   git add README.md CHANGELOG.md package.json package-lock.json pbiviz.json capabilities.json src/visual.ts tests/filtering.test.ts
+   git commit -m "Release v1.1"
+   git tag v1.1
+   git push origin main --tags
+   ```
+
+6. Create the GitHub release and upload the packaged visual:
+
+   ```powershell
+   gh release create v1.1 dist/timeSlicer_1234567890.1.1.0.0.pbiviz --repo Feltzem/powerbi-time-slicer --title "Time Slicer 1.1" --notes-file CHANGELOG.md
+   ```
+
+If you prefer the GitHub website, open the repository, choose **Releases**, draft a new release for tag `v1.1`, paste the `CHANGELOG.md` notes, and attach the `.pbiviz` file from `dist/`.
 
 ## Browser Support
 

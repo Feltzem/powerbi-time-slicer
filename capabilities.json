@@ -98,6 +98,37 @@
             "bool": true
           }
         },
+        "snapInterval": {
+          "displayName": "Playback Snap Interval",
+          "type": {
+            "enumeration": [
+              {
+                "displayName": "1 minute",
+                "value": "1"
+              },
+              {
+                "displayName": "5 minutes",
+                "value": "5"
+              },
+              {
+                "displayName": "10 minutes",
+                "value": "10"
+              },
+              {
+                "displayName": "15 minutes",
+                "value": "15"
+              },
+              {
+                "displayName": "30 minutes",
+                "value": "30"
+              },
+              {
+                "displayName": "60 minutes",
+                "value": "60"
+              }
+            ]
+          }
+        },
         "customStartTime": {
           "displayName": "Custom Start (minutes)",
           "type": {
@@ -120,6 +151,83 @@
           "displayName": "Selected End (minutes)",
           "type": {
             "numeric": true
+          }
+        }
+      }
+    },
+    "presetRanges": {
+      "displayName": "Custom Time Ranges",
+      "properties": {
+        "preset1Label": {
+          "displayName": "Preset 1 Label",
+          "type": {
+            "text": true
+          }
+        },
+        "preset1Start": {
+          "displayName": "Preset 1 Start",
+          "type": {
+            "text": true
+          }
+        },
+        "preset1End": {
+          "displayName": "Preset 1 End",
+          "type": {
+            "text": true
+          }
+        },
+        "preset2Label": {
+          "displayName": "Preset 2 Label",
+          "type": {
+            "text": true
+          }
+        },
+        "preset2Start": {
+          "displayName": "Preset 2 Start",
+          "type": {
+            "text": true
+          }
+        },
+        "preset2End": {
+          "displayName": "Preset 2 End",
+          "type": {
+            "text": true
+          }
+        },
+        "preset3Label": {
+          "displayName": "Preset 3 Label",
+          "type": {
+            "text": true
+          }
+        },
+        "preset3Start": {
+          "displayName": "Preset 3 Start",
+          "type": {
+            "text": true
+          }
+        },
+        "preset3End": {
+          "displayName": "Preset 3 End",
+          "type": {
+            "text": true
+          }
+        },
+        "preset4Label": {
+          "displayName": "Preset 4 Label",
+          "type": {
+            "text": true
+          }
+        },
+        "preset4Start": {
+          "displayName": "Preset 4 Start",
+          "type": {
+            "text": true
+          }
+        },
+        "preset4End": {
+          "displayName": "Preset 4 End",
+          "type": {
+            "text": true
           }
         }
       }

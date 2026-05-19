@@ -1,5 +1,6 @@
 # Node / build
 node_modules/
+design/
 dist/
 *.pbiviz
 .tmp/

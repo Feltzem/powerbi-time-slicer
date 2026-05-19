@@ -111,6 +111,13 @@ const visual = new Visual({
   host,
 } as powerbi.extensibility.visual.VisualConstructorOptions);
 
+const getPresetButtons = (targetVisual: any): HTMLButtonElement[] =>
+  Array.from(
+    (targetVisual.quickSelectContainer as HTMLDivElement).querySelectorAll(
+      ".preset-btn",
+    ),
+  ) as HTMLButtonElement[];
+
 const baseDate = new Date(1899, 11, 30);
 const timeValues: PrimitiveValue[] = [
   new Date(
@@ -195,12 +202,42 @@ assert(
   ((visual as any).playButton as HTMLButtonElement).innerHTML.includes("<svg"),
   "Expected redesigned play button to render an inline SVG icon",
 );
+assert.equal(
+  (visual as any).settings.snapInterval,
+  15,
+  "Expected default playback snap interval to remain 15 minutes",
+);
+assert.equal(
+  ((visual as any).minSlider as HTMLInputElement).step,
+  "15",
+  "Expected min slider step to use the default playback snap interval",
+);
+assert.equal(
+  ((visual as any).maxSlider as HTMLInputElement).step,
+  "15",
+  "Expected max slider step to use the default playback snap interval",
+);
+assert.equal(
+  ((visual as any).currentLabel as HTMLDivElement).textContent,
+  "24h selected",
+  "Expected full-range selected badge to use compact duration text",
+);
+assert.deepEqual(
+  getPresetButtons(visual).map((button) => button.textContent),
+  [
+    "AM Peak (7-9)",
+    "Inter-Peak (10-12)",
+    "PM Peak (16-18)",
+    "Custom (09:00-17:00)",
+  ],
+  "Expected default preset labels and generated ranges to render",
+);
 
 (visual as any).selectTimeRange(360, 720);
 
 assert.equal(
   ((visual as any).currentLabel as HTMLDivElement).textContent,
-  "6h 0m selected",
+  "6h selected",
   "Expected redesigned selected-range badge text to update",
 );
 
@@ -297,7 +334,7 @@ assert.equal(
 );
 assert.equal(
   ((restoredVisual as any).currentLabel as HTMLDivElement).textContent,
-  "6h 0m selected",
+  "6h selected",
   "Expected restored filter to update redesigned selected badge text",
 );
 
@@ -507,6 +544,433 @@ assert.deepEqual(
   },
   "Expected reset to persist the full-range state",
 );
+
+applyJsonFilterCalls.length = 0;
+selectionManager.clearCalls = 0;
+persistPropertiesCalls.length = 0;
+
+const editablePresetVisual = new Visual({
+  element,
+  host,
+} as powerbi.extensibility.visual.VisualConstructorOptions);
+
+const editablePresetDataView = {
+  metadata: {
+    objects: {
+      presetRanges: {
+        preset1Label: "School Run",
+        preset1Start: "7:30 AM",
+        preset1End: "09:15",
+        preset4Label: "Evening",
+        preset4Start: "1730",
+        preset4End: "19:00",
+      },
+    },
+    columns: [
+      {
+        displayName: "Time",
+        queryName: "TimeTable.Time",
+        roles: { timeField: true },
+      },
+    ],
+  },
+  categorical: {
+    categories: [
+      {
+        source: {
+          displayName: "Time",
+          queryName: "TimeTable.Time",
+          roles: { timeField: true },
+        },
+        values: timeValues,
+      },
+    ],
+  },
+} as unknown as powerbi.DataView;
+
+editablePresetVisual.update({
+  dataViews: [editablePresetDataView],
+  viewport: {
+    width: 400,
+    height: 300,
+  },
+} as powerbi.extensibility.visual.VisualUpdateOptions);
+
+const editablePresetButtons = getPresetButtons(editablePresetVisual);
+assert.equal(
+  editablePresetButtons[0].textContent,
+  "School Run (07:30-09:15)",
+  "Expected renamed AM preset to render with its edited time range",
+);
+assert.equal(
+  editablePresetButtons[3].textContent,
+  "Evening (17:30-19:00)",
+  "Expected renamed custom preset to parse compact HHMM text",
+);
+
+editablePresetButtons[0].click();
+
+assert.equal(
+  (editablePresetVisual as any).currentMinTime,
+  450,
+  "Expected edited AM preset start to apply",
+);
+assert.equal(
+  (editablePresetVisual as any).currentMaxTime,
+  555,
+  "Expected edited AM preset end to apply",
+);
+
+applyJsonFilterCalls.length = 0;
+persistPropertiesCalls.length = 0;
+
+const invalidPresetVisual = new Visual({
+  element,
+  host,
+} as powerbi.extensibility.visual.VisualConstructorOptions);
+
+const invalidPresetDataView = {
+  metadata: {
+    objects: {
+      presetRanges: {
+        preset2Start: "13:00",
+        preset2End: "12:00",
+        preset3Start: "not a time",
+        preset3End: "18:00",
+      },
+    },
+    columns: [
+      {
+        displayName: "Time",
+        queryName: "TimeTable.Time",
+        roles: { timeField: true },
+      },
+    ],
+  },
+  categorical: {
+    categories: [
+      {
+        source: {
+          displayName: "Time",
+          queryName: "TimeTable.Time",
+          roles: { timeField: true },
+        },
+        values: timeValues,
+      },
+    ],
+  },
+} as unknown as powerbi.DataView;
+
+invalidPresetVisual.update({
+  dataViews: [invalidPresetDataView],
+  viewport: {
+    width: 400,
+    height: 300,
+  },
+} as powerbi.extensibility.visual.VisualUpdateOptions);
+
+const invalidPresetButtons = getPresetButtons(invalidPresetVisual);
+assert.equal(
+  invalidPresetButtons[1].disabled,
+  true,
+  "Expected start-after-end preset to be disabled",
+);
+assert.equal(
+  invalidPresetButtons[1].textContent,
+  "Inter-Peak (Invalid range)",
+  "Expected invalid range to show a clear disabled label",
+);
+assert.equal(
+  invalidPresetButtons[2].disabled,
+  true,
+  "Expected unparseable time preset to be disabled",
+);
+
+invalidPresetButtons[1].click();
+
+assert.equal(
+  applyJsonFilterCalls.length,
+  0,
+  "Expected disabled invalid preset not to apply a filter",
+);
+
+applyJsonFilterCalls.length = 0;
+selectionManager.clearCalls = 0;
+persistPropertiesCalls.length = 0;
+
+const snapVisual = new Visual({
+  element,
+  host,
+} as powerbi.extensibility.visual.VisualConstructorOptions);
+
+const snapDataView = {
+  metadata: {
+    objects: {
+      timeSlicerSettings: {
+        snapInterval: 30,
+        customStartTime: 553,
+        customEndTime: 1031,
+      },
+    },
+    columns: [
+      {
+        displayName: "Time",
+        queryName: "TimeTable.Time",
+        roles: { timeField: true },
+      },
+    ],
+  },
+  categorical: {
+    categories: [
+      {
+        source: {
+          displayName: "Time",
+          queryName: "TimeTable.Time",
+          roles: { timeField: true },
+        },
+        values: timeValues,
+      },
+    ],
+  },
+} as unknown as powerbi.DataView;
+
+snapVisual.update({
+  dataViews: [snapDataView],
+  viewport: {
+    width: 400,
+    height: 300,
+  },
+} as powerbi.extensibility.visual.VisualUpdateOptions);
+
+assert.equal(
+  ((snapVisual as any).minSlider as HTMLInputElement).step,
+  "30",
+  "Expected min slider step to use the configured playback snap interval",
+);
+assert.equal(
+  ((snapVisual as any).maxSlider as HTMLInputElement).step,
+  "30",
+  "Expected max slider step to use the configured playback snap interval",
+);
+const customPresetButton = getPresetButtons(snapVisual)[3];
+assert.equal(
+  customPresetButton.textContent,
+  "Custom (09:00-17:00)",
+  "Expected custom quick-select label to reflect snapped legacy settings",
+);
+
+customPresetButton.click();
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  540,
+  "Expected custom quick-select start to apply its snapped setting",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  1020,
+  "Expected custom quick-select end to apply its snapped setting",
+);
+
+applyJsonFilterCalls.length = 0;
+persistPropertiesCalls.length = 0;
+
+(snapVisual as any).selectTimeRange(365, 720);
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  360,
+  "Expected quick-select/programmatic range start to snap to 30 minutes",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  720,
+  "Expected quick-select/programmatic range end to snap to 30 minutes",
+);
+assert.deepEqual(
+  persistPropertiesCalls[persistPropertiesCalls.length - 1].merge?.[0]
+    .properties,
+  {
+    selectedStartTime: 360,
+    selectedEndTime: 720,
+  },
+  "Expected snapped programmatic range to be persisted",
+);
+
+applyJsonFilterCalls.length = 0;
+persistPropertiesCalls.length = 0;
+
+const snapMinSlider = (snapVisual as any).minSlider as HTMLInputElement;
+snapMinSlider.value = "675";
+snapMinSlider.dispatchEvent(new window.Event("input", { bubbles: true }));
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  690,
+  "Expected slider input to snap live to the nearest configured interval",
+);
+assert.equal(
+  ((snapVisual as any).currentLabel as HTMLDivElement).textContent,
+  "30m selected",
+  "Expected live duration badge to update with compact minute-only text",
+);
+assert.equal(
+  persistPropertiesCalls.length,
+  0,
+  "Expected snapped slider input not to persist before commit",
+);
+
+snapMinSlider.dispatchEvent(new window.Event("change", { bubbles: true }));
+
+assert.deepEqual(
+  persistPropertiesCalls[0].merge?.[0].properties,
+  {
+    selectedStartTime: 690,
+    selectedEndTime: 720,
+  },
+  "Expected snapped slider commit to persist final snapped bounds",
+);
+
+(snapVisual as any).selectTimeRange(600, 900);
+applyJsonFilterCalls.length = 0;
+persistPropertiesCalls.length = 0;
+
+const snapMaxInput = (snapVisual as any).maxInput as HTMLInputElement;
+snapMaxInput.value = "10:07";
+snapMaxInput.dispatchEvent(new window.Event("blur", { bubbles: true }));
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  600,
+  "Expected typed max value to preserve the current start when enforcing gap",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  630,
+  "Expected typed max value to snap and keep one interval of range",
+);
+assert.equal(
+  snapMaxInput.value,
+  "10:30",
+  "Expected typed max input to display its snapped time",
+);
+
+const originalSetInterval = window.setInterval;
+const originalClearInterval = window.clearInterval;
+let playTick: (() => void) | undefined;
+(window as any).setInterval = (callback: () => void) => {
+  playTick = callback;
+  return 123;
+};
+(window as any).clearInterval = () => undefined;
+
+(snapVisual as any).startPlay();
+assert(playTick, "Expected autoplay to schedule an interval");
+playTick?.();
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  630,
+  "Expected autoplay to advance the start by the configured playback snap interval",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  660,
+  "Expected autoplay to advance the end by the configured playback snap interval",
+);
+
+(snapVisual as any).setCurrentRange(1410, 1440);
+playTick?.();
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  0,
+  "Expected autoplay to loop the start back to the beginning of the day",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  30,
+  "Expected autoplay to preserve the playback window when looping",
+);
+assert.equal(
+  (snapVisual as any).isPlaying,
+  true,
+  "Expected autoplay to keep playing after looping",
+);
+
+(snapVisual as any).stopPlay();
+
+(snapVisual as any).setCurrentRange(0, 1440);
+applyJsonFilterCalls.length = 0;
+playTick = undefined;
+(snapVisual as any).startPlay();
+assert(playTick, "Expected autoplay from full range to schedule an interval");
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  0,
+  "Expected autoplay from full range to start at the beginning of the day",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  30,
+  "Expected autoplay from full range to use one playback interval",
+);
+assert.equal(
+  applyJsonFilterCalls.length,
+  1,
+  "Expected autoplay from full range to apply the first playback filter",
+);
+
+const playbackPersistedDataView = {
+  ...snapDataView,
+  metadata: {
+    ...(snapDataView as any).metadata,
+    objects: {
+      timeSlicerSettings: {
+        snapInterval: 30,
+        selectedStartTime: 0,
+        selectedEndTime: 1440,
+      },
+    },
+  },
+} as unknown as powerbi.DataView;
+
+snapVisual.update({
+  dataViews: [playbackPersistedDataView],
+  viewport: {
+    width: 400,
+    height: 300,
+  },
+} as powerbi.extensibility.visual.VisualUpdateOptions);
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  0,
+  "Expected playback update not to restore a stale persisted start",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  30,
+  "Expected playback update not to restore a stale persisted end",
+);
+
+playTick?.();
+
+assert.equal(
+  (snapVisual as any).currentMinTime,
+  30,
+  "Expected playback to keep advancing after an update during play",
+);
+assert.equal(
+  (snapVisual as any).currentMaxTime,
+  60,
+  "Expected playback end to keep advancing after an update during play",
+);
+
+(snapVisual as any).stopPlay();
+window.setInterval = originalSetInterval;
+window.clearInterval = originalClearInterval;
 
 applyJsonFilterCalls.length = 0;
 selectionManager.clearCalls = 0;

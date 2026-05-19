@@ -4,10 +4,10 @@
     "displayName": "Time Slicer",
     "guid": "timeSlicer_1234567890",
     "visualClassName": "Visual",
-    "version": "1.0.0.0",
-    "description": "A beautiful and intuitive time slicer for filtering data by date ranges",
-    "supportUrl": "https://github.com/powerbi-visuals/time-slicer",
-    "gitHubUrl": "https://github.com/powerbi-visuals/time-slicer"
+    "version": "1.1.0.0",
+    "description": "A time slicer for filtering Power BI data by time ranges",
+    "supportUrl": "https://github.com/Feltzem/powerbi-time-slicer",
+    "gitHubUrl": "https://github.com/Feltzem/powerbi-time-slicer"
   },
   "apiVersion": "5.2.0",
   "author": {

@@ -20,6 +20,65 @@ const ADVANCED_FILTER_TYPE = 0; // Power BI advanced filter type identifier (sch
 const ADVANCED_FILTER_SCHEMA =
   "http" + "://powerbi.com/product/schema#advanced";
 const INVALID_TIME_MESSAGE = "Enter a valid time (e.g. 07:30, 7:30 AM, 1730).";
+const FULL_DAY_MINUTES = 1440;
+const DEFAULT_SNAP_INTERVAL = 15;
+const SNAP_INTERVALS = [1, 5, 10, 15, 30, 60];
+const PRESET_RANGES_OBJECT_NAME = "presetRanges";
+
+interface PresetRangeSettings {
+  label: string;
+  start: string;
+  end: string;
+}
+
+interface PresetRangeDefinition extends PresetRangeSettings {
+  key: string;
+  defaultStartMinutes: number;
+  defaultEndMinutes: number;
+}
+
+interface ResolvedPresetRange {
+  key: string;
+  label: string;
+  start: number;
+  end: number;
+  isValid: boolean;
+}
+
+const DEFAULT_PRESET_RANGES: PresetRangeDefinition[] = [
+  {
+    key: "preset1",
+    label: "AM Peak",
+    start: "07:00",
+    end: "09:00",
+    defaultStartMinutes: 420,
+    defaultEndMinutes: 540,
+  },
+  {
+    key: "preset2",
+    label: "Inter-Peak",
+    start: "10:00",
+    end: "12:00",
+    defaultStartMinutes: 600,
+    defaultEndMinutes: 720,
+  },
+  {
+    key: "preset3",
+    label: "PM Peak",
+    start: "16:00",
+    end: "18:00",
+    defaultStartMinutes: 960,
+    defaultEndMinutes: 1080,
+  },
+  {
+    key: "preset4",
+    label: "Custom",
+    start: "09:00",
+    end: "17:00",
+    defaultStartMinutes: 540,
+    defaultEndMinutes: 1020,
+  },
+];
 
 interface TimeSlicerSettings {
   accentColor: string;
@@ -28,8 +87,10 @@ interface TimeSlicerSettings {
   showLabels: boolean;
   timeFormat: string;
   compactMode: boolean;
+  snapInterval: number;
   customStartTime: number;
   customEndTime: number;
+  presetRanges: PresetRangeSettings[];
   selectedStartTime?: number;
   selectedEndTime?: number;
 }
@@ -52,11 +113,9 @@ export class Visual implements IVisual {
   private rangeTrack!: HTMLDivElement;
   private controlsContainer!: HTMLDivElement;
   private quickSelectContainer!: HTMLDivElement;
-  private customQuickSelectButton!: HTMLButtonElement;
   private presetButtons: Array<{
     button: HTMLButtonElement;
-    startTime: number;
-    endTime: number;
+    key: string;
   }> = [];
   private settings?: TimeSlicerSettings;
   private currentMinTime: number = 0; // 00:00
@@ -143,7 +202,7 @@ export class Visual implements IVisual {
     this.minSlider.className = "range-slider min-slider";
     this.minSlider.min = "0";
     this.minSlider.max = "1440";
-    this.minSlider.step = "15"; // 15-minute increments
+    this.minSlider.step = DEFAULT_SNAP_INTERVAL.toString();
     this.minSlider.value = "0";
     this.minSlider.addEventListener("input", () => this.onMinSliderChange());
     this.minSlider.addEventListener("change", () =>
@@ -162,7 +221,7 @@ export class Visual implements IVisual {
     this.maxSlider.className = "range-slider max-slider";
     this.maxSlider.min = "0";
     this.maxSlider.max = "1440";
-    this.maxSlider.step = "15"; // 15-minute increments
+    this.maxSlider.step = DEFAULT_SNAP_INTERVAL.toString();
     this.maxSlider.value = "1440";
     this.maxSlider.addEventListener("input", () => this.onMaxSliderChange());
     this.maxSlider.addEventListener("change", () =>
@@ -199,49 +258,28 @@ export class Visual implements IVisual {
     this.quickSelectContainer.className = "preset-row";
     this.container.appendChild(this.quickSelectContainer);
 
-    const quickSelects = [
-      { label: "Morning (7-9)", startTime: 420, endTime: 540 }, // 7:00 AM to 9:00 AM
-      { label: "Inter-Peak (10-12)", startTime: 600, endTime: 720 }, // 10:00 AM to 12:00 PM
-      { label: "PM Peak (16-18)", startTime: 960, endTime: 1080 }, // 4:00 PM to 6:00 PM
-    ];
-
-    quickSelects.forEach((item) => {
+    DEFAULT_PRESET_RANGES.forEach((item) => {
       const button = document.createElement("button");
       button.className = "preset-btn";
       button.type = "button";
-      button.textContent = item.label;
-      button.addEventListener("click", () =>
-        this.selectTimeRange(item.startTime, item.endTime),
-      );
+      button.addEventListener("click", () => {
+        const preset = this.getResolvedPresetRange(item.key);
+        if (!preset.isValid) {
+          console.warn(
+            `${preset.label} quick select range is invalid. Update its settings to enable the button.`,
+          );
+          return;
+        }
+        this.selectTimeRange(preset.start, preset.end);
+      });
       this.quickSelectContainer.appendChild(button);
       this.presetButtons.push({
         button,
-        startTime: item.startTime,
-        endTime: item.endTime,
+        key: item.key,
       });
     });
 
-    this.customQuickSelectButton = document.createElement("button");
-    this.customQuickSelectButton.className = "preset-btn";
-    this.customQuickSelectButton.type = "button";
-    this.customQuickSelectButton.addEventListener("click", () => {
-      const customRange = this.getCustomRange();
-      if (!customRange.isValid) {
-        console.warn(
-          "Custom quick select range is invalid. Update its settings to enable the button.",
-        );
-        return;
-      }
-      this.selectTimeRange(customRange.start, customRange.end);
-    });
-    this.quickSelectContainer.appendChild(this.customQuickSelectButton);
-    this.presetButtons.push({
-      button: this.customQuickSelectButton,
-      startTime: 0,
-      endTime: 0,
-    });
-
-    this.updateCustomQuickSelectButton();
+    this.updatePresetButtons();
     this.updateLabels();
     this.updateRangeTrack();
   }
@@ -260,14 +298,12 @@ export class Visual implements IVisual {
   }
 
   private updatePresetButtonStates(): void {
-    const customRange = this.getCustomRange();
-
     this.presetButtons.forEach((preset) => {
-      const isCustomButton = preset.button === this.customQuickSelectButton;
-      const startTime = isCustomButton ? customRange.start : preset.startTime;
-      const endTime = isCustomButton ? customRange.end : preset.endTime;
+      const range = this.getResolvedPresetRange(preset.key);
       const isActive =
-        startTime === this.currentMinTime && endTime === this.currentMaxTime;
+        range.isValid &&
+        range.start === this.currentMinTime &&
+        range.end === this.currentMaxTime;
       preset.button.classList.toggle("is-active", isActive);
     });
   }
@@ -313,15 +349,16 @@ export class Visual implements IVisual {
   private onMinSliderChange(): void {
     this.isSliderInteractionActive = true;
 
-    const minValue = parseInt(this.minSlider.value);
-    const maxValue = parseInt(this.maxSlider.value);
+    const minValue = this.snapMinutes(parseInt(this.minSlider.value, 10), 0);
+    const maxValue = this.snapMinutes(
+      parseInt(this.maxSlider.value, 10),
+      FULL_DAY_MINUTES,
+    );
+    const range = this.normalizeRange(minValue, maxValue, "end");
 
-    if (minValue >= maxValue) {
-      this.minSlider.value = Math.max(0, maxValue - 15).toString();
-      this.currentMinTime = Math.max(0, maxValue - 15);
-    } else {
-      this.currentMinTime = minValue;
-    }
+    this.currentMinTime = range.min;
+    this.currentMaxTime = range.max;
+    this.syncSliderValues();
 
     this.updateLabels();
     this.updateRangeTrack();
@@ -331,15 +368,16 @@ export class Visual implements IVisual {
   private onMaxSliderChange(): void {
     this.isSliderInteractionActive = true;
 
-    const minValue = parseInt(this.minSlider.value);
-    const maxValue = parseInt(this.maxSlider.value);
+    const minValue = this.snapMinutes(parseInt(this.minSlider.value, 10), 0);
+    const maxValue = this.snapMinutes(
+      parseInt(this.maxSlider.value, 10),
+      FULL_DAY_MINUTES,
+    );
+    const range = this.normalizeRange(minValue, maxValue, "start");
 
-    if (maxValue <= minValue) {
-      this.maxSlider.value = Math.min(1440, minValue + 15).toString();
-      this.currentMaxTime = Math.min(1440, minValue + 15);
-    } else {
-      this.currentMaxTime = maxValue;
-    }
+    this.currentMinTime = range.min;
+    this.currentMaxTime = range.max;
+    this.syncSliderValues();
 
     this.updateLabels();
     this.updateRangeTrack();
@@ -374,9 +412,7 @@ export class Visual implements IVisual {
 
     if (this.currentLabel) {
       const timeDiff = this.currentMaxTime - this.currentMinTime;
-      const hours = Math.floor(timeDiff / 60);
-      const minutes = timeDiff % 60;
-      this.currentLabel.textContent = `${hours}h ${minutes}m selected`;
+      this.currentLabel.textContent = this.formatDurationLabel(timeDiff);
       this.currentLabel.classList.toggle("is-filtered", isFiltered);
     }
 
@@ -400,24 +436,18 @@ export class Visual implements IVisual {
   }
 
   private startPlay(): void {
+    this.stopPlay();
     this.isPlaying = true;
     this.setPlayButtonState(true);
 
+    if (this.isFullRange(this.currentMinTime, this.currentMaxTime)) {
+      this.setCurrentRange(0, this.getSnapInterval());
+      this.updatePlaybackFrame();
+    }
+
     this.playInterval = window.setInterval(() => {
-      if (this.currentMaxTime >= 1440) {
-        this.stopPlay();
-        return;
-      }
-
-      this.currentMinTime = Math.min(this.currentMinTime + 15, 1425); // Move 15 minutes, max 23:45
-      this.currentMaxTime = Math.min(this.currentMaxTime + 15, 1440); // Move 15 minutes, max 24:00
-
-      this.minSlider.value = this.currentMinTime.toString();
-      this.maxSlider.value = this.currentMaxTime.toString();
-
-      this.updateLabels();
-      this.updateRangeTrack();
-      this.applyFilter(false);
+      this.advancePlaybackRange();
+      this.updatePlaybackFrame();
     }, 500);
   }
 
@@ -425,17 +455,54 @@ export class Visual implements IVisual {
     this.isPlaying = false;
     this.setPlayButtonState(false);
     if (this.playInterval) {
-      clearInterval(this.playInterval);
+      window.clearInterval(this.playInterval);
+      this.playInterval = 0;
     }
+  }
+
+  private advancePlaybackRange(): void {
+    const snapInterval = this.getSnapInterval();
+    const duration = this.getPlaybackDuration();
+
+    if (this.currentMaxTime >= FULL_DAY_MINUTES) {
+      this.setCurrentRange(0, duration);
+      return;
+    }
+
+    const nextMin = this.currentMinTime + snapInterval;
+    const nextMax = this.currentMaxTime + snapInterval;
+
+    if (nextMax > FULL_DAY_MINUTES) {
+      this.setCurrentRange(0, duration);
+      return;
+    }
+
+    this.setCurrentRange(nextMin, nextMax);
+  }
+
+  private getPlaybackDuration(): number {
+    const snapInterval = this.getSnapInterval();
+    const duration = this.currentMaxTime - this.currentMinTime;
+
+    if (duration <= 0 || duration >= FULL_DAY_MINUTES) {
+      return snapInterval;
+    }
+
+    return Math.max(snapInterval, Math.min(FULL_DAY_MINUTES, duration));
+  }
+
+  private updatePlaybackFrame(): void {
+    this.updateLabels();
+    this.updateRangeTrack();
+    this.applyFilter(false);
   }
 
   private resetSlider(): void {
     this.stopPlay();
     this.currentMinTime = 0; // 00:00
-    this.currentMaxTime = 1440; // 24:00
+    this.currentMaxTime = FULL_DAY_MINUTES; // 24:00
 
-    this.minSlider.value = this.currentMinTime.toString();
-    this.maxSlider.value = this.currentMaxTime.toString();
+    this.syncSliderValues();
 
     this.updateLabels();
     this.updateRangeTrack();
@@ -458,10 +525,14 @@ export class Visual implements IVisual {
 
     this.stopPlay();
 
-    const normalized = this.clampMinutes(parsedMinutes, parsedMinutes);
-    const maxAllowed = Math.max(0, this.currentMaxTime - 15);
-    this.currentMinTime = Math.min(normalized, maxAllowed);
-    this.minSlider.value = this.currentMinTime.toString();
+    const range = this.normalizeRange(
+      parsedMinutes,
+      this.currentMaxTime,
+      "end",
+    );
+    this.currentMinTime = range.min;
+    this.currentMaxTime = range.max;
+    this.syncSliderValues();
 
     this.updateLabels();
     this.updateRangeTrack();
@@ -484,10 +555,14 @@ export class Visual implements IVisual {
 
     this.stopPlay();
 
-    const normalized = this.clampMinutes(parsedMinutes, parsedMinutes);
-    const minAllowed = Math.min(1440, this.currentMinTime + 15);
-    this.currentMaxTime = Math.max(normalized, minAllowed);
-    this.maxSlider.value = this.currentMaxTime.toString();
+    const range = this.normalizeRange(
+      this.currentMinTime,
+      parsedMinutes,
+      "start",
+    );
+    this.currentMinTime = range.min;
+    this.currentMaxTime = range.max;
+    this.syncSliderValues();
 
     this.updateLabels();
     this.updateRangeTrack();
@@ -685,16 +760,10 @@ export class Visual implements IVisual {
   }
 
   private setCurrentRange(startTime: number, endTime: number): void {
-    this.currentMinTime = this.clampMinutes(startTime, 0);
-    this.currentMaxTime = this.clampMinutes(endTime, 1440);
-
-    if (this.currentMaxTime <= this.currentMinTime) {
-      this.currentMinTime = 0;
-      this.currentMaxTime = 1440;
-    }
-
-    this.minSlider.value = this.currentMinTime.toString();
-    this.maxSlider.value = this.currentMaxTime.toString();
+    const range = this.normalizeRange(startTime, endTime);
+    this.currentMinTime = range.min;
+    this.currentMaxTime = range.max;
+    this.syncSliderValues();
   }
 
   private getRangeKey(startTime: number, endTime: number): string {
@@ -1030,7 +1099,33 @@ export class Visual implements IVisual {
       .padStart(2, "0")}`;
   }
 
-  private clampMinutes(
+  private formatDurationLabel(minutes: number): string {
+    const boundedMinutes = Math.max(
+      0,
+      Math.min(FULL_DAY_MINUTES, Math.round(minutes)),
+    );
+    const hours = Math.floor(boundedMinutes / 60);
+    const mins = boundedMinutes % 60;
+    const parts: string[] = [];
+
+    if (hours > 0) {
+      parts.push(`${hours}h`);
+    }
+
+    if (mins > 0 || parts.length === 0) {
+      parts.push(`${mins}m`);
+    }
+
+    return `${parts.join(" ")} selected`;
+  }
+
+  private getSnapInterval(): number {
+    return Visual.normalizeSnapInterval(
+      this.settings?.snapInterval ?? DEFAULT_SNAP_INTERVAL,
+    );
+  }
+
+  private snapMinutes(
     value: number | undefined,
     defaultValue: number,
   ): number {
@@ -1038,55 +1133,159 @@ export class Visual implements IVisual {
       typeof value === "number" && Number.isFinite(value)
         ? value
         : defaultValue;
-    const rounded = Math.round(numeric / 15) * 15;
-    return Math.max(0, Math.min(1440, rounded));
+    const snapInterval = this.getSnapInterval();
+    const rounded = Math.round(numeric / snapInterval) * snapInterval;
+    return Math.max(0, Math.min(FULL_DAY_MINUTES, rounded));
   }
 
-  private getCustomRange(): {
-    start: number;
-    end: number;
-    isValid: boolean;
-  } {
-    const defaultStart = 540;
-    const defaultEnd = 1020;
-    const start = this.clampMinutes(
-      this.settings?.customStartTime,
-      defaultStart,
+  private normalizeRange(
+    startTime: number,
+    endTime: number,
+    preserve: "start" | "end" | "none" = "none",
+  ): { min: number; max: number } {
+    let min = this.snapMinutes(startTime, 0);
+    let max = this.snapMinutes(endTime, FULL_DAY_MINUTES);
+    const snapInterval = this.getSnapInterval();
+
+    if (max <= min) {
+      if (preserve === "end") {
+        min = Math.max(0, max - snapInterval);
+        if (max <= min) {
+          max = Math.min(FULL_DAY_MINUTES, min + snapInterval);
+        }
+      } else if (preserve === "start") {
+        max = Math.min(FULL_DAY_MINUTES, min + snapInterval);
+        if (max <= min) {
+          min = Math.max(0, max - snapInterval);
+        }
+      } else if (min >= FULL_DAY_MINUTES) {
+        min = Math.max(0, FULL_DAY_MINUTES - snapInterval);
+        max = FULL_DAY_MINUTES;
+      } else {
+        max = Math.min(FULL_DAY_MINUTES, min + snapInterval);
+      }
+    }
+
+    return { min, max };
+  }
+
+  private syncSliderValues(): void {
+    if (this.minSlider) {
+      this.minSlider.value = this.currentMinTime.toString();
+    }
+
+    if (this.maxSlider) {
+      this.maxSlider.value = this.currentMaxTime.toString();
+    }
+  }
+
+  private clampMinutes(
+    value: number | undefined,
+    defaultValue: number,
+  ): number {
+    return this.snapMinutes(value, defaultValue);
+  }
+
+  private getResolvedPresetRange(key: string): ResolvedPresetRange {
+    const definition =
+      DEFAULT_PRESET_RANGES.find((item) => item.key === key) ||
+      DEFAULT_PRESET_RANGES[0];
+    const index = DEFAULT_PRESET_RANGES.indexOf(definition);
+    const configuredRange = this.settings?.presetRanges?.[index];
+    const label = this.normalizePresetLabel(
+      configuredRange?.label,
+      definition.label,
     );
-    const end = this.clampMinutes(this.settings?.customEndTime, defaultEnd);
+    const start = this.parsePresetTime(
+      configuredRange?.start,
+      definition.defaultStartMinutes,
+    );
+    const end = this.parsePresetTime(
+      configuredRange?.end,
+      definition.defaultEndMinutes,
+    );
+    const resolvedStart = start ?? definition.defaultStartMinutes;
+    const resolvedEnd = end ?? definition.defaultEndMinutes;
+
     return {
-      start,
-      end,
-      isValid: start < end,
+      key: definition.key,
+      label,
+      start: resolvedStart,
+      end: resolvedEnd,
+      isValid:
+        typeof start === "number" &&
+        typeof end === "number" &&
+        resolvedStart < resolvedEnd,
     };
   }
 
-  private updateCustomQuickSelectButton(): void {
-    if (!this.customQuickSelectButton) {
-      return;
+  private parsePresetTime(
+    value: string | undefined,
+    defaultMinutes: number,
+  ): number | undefined {
+    if (typeof value !== "string" || value.trim() === "") {
+      return this.clampMinutes(defaultMinutes, defaultMinutes);
     }
 
-    const range = this.getCustomRange();
-
-    if (range.isValid) {
-      const label = `Custom ${this.formatMinutes(range.start)}-${this.formatMinutes(
-        range.end,
-      )}`;
-      this.customQuickSelectButton.textContent = label;
-      this.customQuickSelectButton.title = `Apply ${this.formatMinutes(
-        range.start,
-      )} to ${this.formatMinutes(range.end)}`;
-      this.customQuickSelectButton.disabled = false;
-      this.customQuickSelectButton.setAttribute("aria-disabled", "false");
-    } else {
-      this.customQuickSelectButton.textContent = "Custom range";
-      this.customQuickSelectButton.title =
-        "Set valid Custom Start and Custom End values in the Time Slicer settings.";
-      this.customQuickSelectButton.disabled = true;
-      this.customQuickSelectButton.setAttribute("aria-disabled", "true");
+    const parsed = this.parseTimeInput(value);
+    if (typeof parsed !== "number" || !Number.isFinite(parsed)) {
+      return undefined;
     }
+
+    return this.clampMinutes(parsed, defaultMinutes);
+  }
+
+  private normalizePresetLabel(
+    value: string | undefined,
+    defaultValue: string,
+  ): string {
+    const label = typeof value === "string" ? value.trim() : "";
+    return label || defaultValue;
+  }
+
+  private updatePresetButtons(): void {
+    this.presetButtons.forEach((presetButton) => {
+      const preset = this.getResolvedPresetRange(presetButton.key);
+      presetButton.button.textContent = this.formatPresetButtonLabel(preset);
+
+      if (preset.isValid) {
+        presetButton.button.title = `Apply ${preset.label} ${this.formatMinutes(
+          preset.start,
+        )} to ${this.formatMinutes(preset.end)}`;
+        presetButton.button.disabled = false;
+        presetButton.button.setAttribute("aria-disabled", "false");
+      } else {
+        presetButton.button.title =
+          "Set valid start and end values in Custom Time Ranges.";
+        presetButton.button.disabled = true;
+        presetButton.button.setAttribute("aria-disabled", "true");
+      }
+    });
 
     this.updatePresetButtonStates();
+  }
+
+  private formatPresetButtonLabel(preset: ResolvedPresetRange): string {
+    if (!preset.isValid) {
+      return `${preset.label} (Invalid range)`;
+    }
+
+    return `${preset.label} (${this.formatPresetRange(preset)})`;
+  }
+
+  private formatPresetRange(preset: ResolvedPresetRange): string {
+    const canUseHourRange =
+      preset.key !== "preset4" &&
+      preset.start % 60 === 0 &&
+      preset.end % 60 === 0;
+
+    if (canUseHourRange) {
+      return `${preset.start / 60}-${preset.end / 60}`;
+    }
+
+    return `${this.formatMinutes(preset.start)}-${this.formatMinutes(
+      preset.end,
+    )}`;
   }
 
   private extractTableName(queryName: string): string {
@@ -1163,7 +1362,8 @@ export class Visual implements IVisual {
           column,
         );
         const persistedRange = this.getRangeFromPersistedSettings();
-        const shouldRestoreRange = !this.isSliderInteractionActive;
+        const shouldRestoreRange =
+          !this.isSliderInteractionActive && !this.isPlaying;
 
         if (shouldRestoreRange && restoredRange) {
           this.setCurrentRange(restoredRange.min, restoredRange.max);
@@ -1202,6 +1402,7 @@ export class Visual implements IVisual {
 
     const compactMode = this.settings.compactMode === true;
     const darkMode = this.isDarkColor(this.settings.backgroundColor);
+    const snapInterval = this.getSnapInterval();
 
     this.container.classList.toggle("compact", compactMode);
     this.container.classList.toggle("theme-dark", darkMode);
@@ -1247,6 +1448,10 @@ export class Visual implements IVisual {
     this.container.style.backgroundColor = backgroundColor;
     this.container.style.color = textColor;
 
+    this.minSlider.step = snapInterval.toString();
+    this.maxSlider.step = snapInterval.toString();
+    this.setCurrentRange(this.currentMinTime, this.currentMaxTime);
+
     const showInputs = this.settings.showLabels !== false || compactMode;
     if (this.labelsContainer) {
       this.labelsContainer.style.justifyContent = showInputs
@@ -1278,7 +1483,7 @@ export class Visual implements IVisual {
       this.sliderContainer.style.height = compactMode ? "20px" : "20px";
     }
 
-    this.updateCustomQuickSelectButton();
+    this.updatePresetButtons();
 
     this.updateRangeTrack();
     this.updateLabels();
@@ -1313,6 +1518,16 @@ export class Visual implements IVisual {
     },
   ): TimeSlicerSettings {
     const objects = dataView?.metadata?.objects;
+    const legacyCustomStartTime = Visual.getOptionalNumberValue(
+      objects,
+      "timeSlicerSettings",
+      "customStartTime",
+    );
+    const legacyCustomEndTime = Visual.getOptionalNumberValue(
+      objects,
+      "timeSlicerSettings",
+      "customEndTime",
+    );
 
     return {
       accentColor: Visual.getColorValue(
@@ -1356,17 +1571,20 @@ export class Visual implements IVisual {
         "compactMode",
         false,
       ),
-      customStartTime: Visual.getNumberValue(
-        objects,
-        "timeSlicerSettings",
-        "customStartTime",
-        540,
+      snapInterval: Visual.normalizeSnapInterval(
+        Visual.getNumberValue(
+          objects,
+          "timeSlicerSettings",
+          "snapInterval",
+          DEFAULT_SNAP_INTERVAL,
+        ),
       ),
-      customEndTime: Visual.getNumberValue(
+      customStartTime: legacyCustomStartTime ?? 540,
+      customEndTime: legacyCustomEndTime ?? 1020,
+      presetRanges: Visual.parsePresetRangeSettings(
         objects,
-        "timeSlicerSettings",
-        "customEndTime",
-        1020,
+        legacyCustomStartTime,
+        legacyCustomEndTime,
       ),
       selectedStartTime: Visual.getOptionalNumberValue(
         objects,
@@ -1379,6 +1597,66 @@ export class Visual implements IVisual {
         "selectedEndTime",
       ),
     };
+  }
+
+  private static parsePresetRangeSettings(
+    objects: any,
+    legacyCustomStartTime: number | undefined,
+    legacyCustomEndTime: number | undefined,
+  ): PresetRangeSettings[] {
+    return DEFAULT_PRESET_RANGES.map((preset) => {
+      const startPropertyName = `${preset.key}Start`;
+      const endPropertyName = `${preset.key}End`;
+      const hasPresetStart = Visual.hasObjectProperty(
+        objects,
+        PRESET_RANGES_OBJECT_NAME,
+        startPropertyName,
+      );
+      const hasPresetEnd = Visual.hasObjectProperty(
+        objects,
+        PRESET_RANGES_OBJECT_NAME,
+        endPropertyName,
+      );
+      let start = Visual.getStringValue(
+        objects,
+        PRESET_RANGES_OBJECT_NAME,
+        startPropertyName,
+        preset.start,
+      );
+      let end = Visual.getStringValue(
+        objects,
+        PRESET_RANGES_OBJECT_NAME,
+        endPropertyName,
+        preset.end,
+      );
+
+      if (
+        preset.key === "preset4" &&
+        !hasPresetStart &&
+        typeof legacyCustomStartTime === "number"
+      ) {
+        start = Visual.formatSettingsTimeValue(legacyCustomStartTime);
+      }
+
+      if (
+        preset.key === "preset4" &&
+        !hasPresetEnd &&
+        typeof legacyCustomEndTime === "number"
+      ) {
+        end = Visual.formatSettingsTimeValue(legacyCustomEndTime);
+      }
+
+      return {
+        label: Visual.getStringValue(
+          objects,
+          PRESET_RANGES_OBJECT_NAME,
+          `${preset.key}Label`,
+          preset.label,
+        ),
+        start,
+        end,
+      };
+    });
   }
 
   private static readPaletteColor(
@@ -1395,6 +1673,12 @@ export class Visual implements IVisual {
     return undefined;
   }
 
+  private static normalizeSnapInterval(value: number): number {
+    return SNAP_INTERVALS.indexOf(value) >= 0
+      ? value
+      : DEFAULT_SNAP_INTERVAL;
+  }
+
   private static getValue(
     objects: any,
     objectName: string,
@@ -1409,6 +1693,49 @@ export class Visual implements IVisual {
       return objects[objectName][propertyName];
     }
     return defaultValue;
+  }
+
+  private static hasObjectProperty(
+    objects: any,
+    objectName: string,
+    propertyName: string,
+  ): boolean {
+    return (
+      objects &&
+      objects[objectName] &&
+      objects[objectName][propertyName] !== undefined
+    );
+  }
+
+  private static getStringValue(
+    objects: any,
+    objectName: string,
+    propertyName: string,
+    defaultValue: string,
+  ): string {
+    const value = Visual.getValue(
+      objects,
+      objectName,
+      propertyName,
+      defaultValue,
+    );
+    return value === undefined || value === null ? defaultValue : String(value);
+  }
+
+  private static formatSettingsTimeValue(minutes: number): string {
+    const boundedMinutes = Math.max(
+      0,
+      Math.min(FULL_DAY_MINUTES, Math.round(minutes)),
+    );
+    if (boundedMinutes === FULL_DAY_MINUTES) {
+      return "24:00";
+    }
+
+    const hours = Math.floor(boundedMinutes / 60);
+    const mins = boundedMinutes % 60;
+    return `${hours.toString().padStart(2, "0")}:${mins
+      .toString()
+      .padStart(2, "0")}`;
   }
 
   private static getNumberValue(
@@ -1595,15 +1922,27 @@ export class Visual implements IVisual {
           showLabels: this.settings?.showLabels !== false,
           timeFormat: this.settings?.timeFormat || "HH:MM",
           compactMode: this.settings?.compactMode === true,
-          customStartTime:
-            typeof this.settings?.customStartTime === "number"
-              ? this.settings.customStartTime
-              : 540,
-          customEndTime:
-            typeof this.settings?.customEndTime === "number"
-              ? this.settings.customEndTime
-              : 1020,
+          snapInterval: this.getSnapInterval().toString(),
         },
+        selector: null as any,
+      });
+    }
+
+    if (options.objectName === PRESET_RANGES_OBJECT_NAME) {
+      const presetProperties: Record<string, string> = {};
+
+      DEFAULT_PRESET_RANGES.forEach((preset, index) => {
+        const settings = this.settings?.presetRanges?.[index];
+        presetProperties[`${preset.key}Label`] =
+          settings?.label ?? preset.label;
+        presetProperties[`${preset.key}Start`] =
+          settings?.start ?? preset.start;
+        presetProperties[`${preset.key}End`] = settings?.end ?? preset.end;
+      });
+
+      settings.push({
+        objectName: PRESET_RANGES_OBJECT_NAME,
+        properties: presetProperties,
         selector: null as any,
       });
     }
